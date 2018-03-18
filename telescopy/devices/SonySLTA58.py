@@ -1,6 +1,7 @@
 import threading
 import datetime
 import os
+import time
 
 from indi.device import Driver
 from indi.device.pool import DevicePool
@@ -15,14 +16,29 @@ from telescopy import settings
 class SonySLTA58(Driver):
     name = 'SONY_SLT_A58'
 
+    BATTERY_CHECK_INTERVAL = 300
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.camera = SonySLTA58_hw()
+        self.battcheck = None
 
     general = properties.Group(
         'GENERAL',
         vectors=dict(
             connection=properties.Standard('CONNECTION', onchange='connect'),
+            info=properties.TextVector(
+                'INFO',
+                enabled=False,
+                perm=const.Permissions.READ_ONLY,
+                elements=dict(
+                    battery_level=properties.Text('BATTERY_LEVEL'),
+                    manufacturer=properties.Text('MANUFACTURER'),
+                    camera_model=properties.Text('CAMERA_MODEL'),
+                    device_version=properties.Text('DEVICE_VERSION'),
+                    serial_number=properties.Text('SERIAL_NUMBER'),
+                )
+            ),
             active_device=properties.Standard(
                 'ACTIVE_DEVICES',
                 elements=dict(
@@ -79,11 +95,21 @@ class SonySLTA58(Driver):
     )
 
     def connect(self, sender):
-        connected = sender.connect.bool_value
+        connected = self.general.connection.connect.bool_value
 
         if connected:
             self.settings.iso.reset_selected_value(self.camera.get_iso())
 
+            self.general.info.manufacturer.value = self.camera.get_manufacturer()
+            self.general.info.camera_model.value = self.camera.get_camera_model()
+            self.general.info.device_version.value = self.camera.get_device_version()
+            self.general.info.serial_number.value = self.camera.get_serial_number()
+
+            if self.battcheck is None or not self.battcheck.is_alive():
+                self.battcheck = threading.Thread(target=self.get_battery_level, daemon=True)
+                self.battcheck.start()
+
+        self.general.info.enabled = connected
         self.exposition.enabled = connected
         self.settings.enabled = connected
         self.images.enabled = connected
@@ -111,7 +137,7 @@ class SonySLTA58(Driver):
 
             self.exposition.exposure.state_ = const.State.OK
 
-        w = threading.Thread(target=worker)
+        w = threading.Thread(target=worker, daemon=True)
         w.start()
 
     def iso_changed(self, sender):
@@ -119,5 +145,12 @@ class SonySLTA58(Driver):
             self.settings.iso.state_ = const.State.BUSY
             self.camera.set_iso(self.settings.iso.selected_value)
             self.settings.iso.state_ = const.State.OK
-        w = threading.Thread(target=worker)
+        w = threading.Thread(target=worker, daemon=True)
         w.start()
+
+    def get_battery_level(self):
+        while self.general.connection.connect.bool_value:
+            self.general.info.state_ = const.State.BUSY
+            self.general.info.battery_level.value = self.camera.get_battery_level()
+            self.general.info.state_ = const.State.OK
+            time.sleep(self.BATTERY_CHECK_INTERVAL)

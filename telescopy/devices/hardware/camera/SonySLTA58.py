@@ -158,5 +158,17 @@ class SonySLTA58:
     def get_battery_level(self):
         return self.gphoto.get_camera_config('batterylevel')
 
+    def get_serial_number(self):
+        return self.gphoto.get_camera_config('serialnumber')
+
+    def get_device_version(self):
+        return self.gphoto.get_camera_config('deviceversion')
+
+    def get_manufacturer(self):
+        return self.gphoto.get_camera_config('manufacturer')
+
+    def get_camera_model(self):
+        return self.gphoto.get_camera_config('cameramodel')
+
     def _set_speed(self, speed):
         self.gphoto.set_camera_config('shutterspeed', speed)

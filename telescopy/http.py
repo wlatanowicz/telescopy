@@ -45,5 +45,5 @@ class HttpServer:
         if not os.path.exists(settings.PUB_DIR):
             os.makedirs(settings.PUB_DIR)
 
-        http_th = threading.Thread(target=cls.http_server)
+        http_th = threading.Thread(target=cls.http_server, daemon=True)
         http_th.start()

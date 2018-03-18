@@ -1,4 +1,5 @@
 import os
+import threading
 
 from telescopy import settings
 
@@ -6,12 +7,18 @@ from telescopy import settings
 class Gphoto:
     def __init__(self, model):
         self.model = model
+        self.lock = threading.Lock()
 
     def exec_gphoto(self, cmd):
         gphoto_bin = settings.GPHOTO_PATH
         full_cmd = f'{gphoto_bin} --camera="{self.model}" --quiet {cmd}'
-        f = os.popen(full_cmd)
-        return f.read()
+        self.lock.acquire()
+        try:
+            f = os.popen(full_cmd)
+            result = f.read()
+        finally:
+            self.lock.release()
+        return result
 
     def get_camera_config(self, config):
         try:
