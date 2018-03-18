@@ -67,8 +67,10 @@ class SonySLTA58(Driver):
                     iso3200=properties.Switch('3200'),
                 )
             ),
+            quality=properties.Standard('CCD_COMPRESSION')
         )
     )
+    settings.quality.onchange = 'quality_changed'
 
     exposition = properties.Group(
         'EXPOSITION',
@@ -99,6 +101,10 @@ class SonySLTA58(Driver):
 
         if connected:
             self.settings.iso.reset_selected_value(self.camera.get_iso())
+
+            quality = self.camera.get_format()
+            self.settings.quality.compress.reset_bool_value('jpeg' in quality)
+            self.settings.quality.raw.reset_bool_value('raw' in quality)
 
             self.general.info.manufacturer.value = self.camera.get_manufacturer()
             self.general.info.camera_model.value = self.camera.get_camera_model()
@@ -151,6 +157,17 @@ class SonySLTA58(Driver):
     def get_battery_level(self):
         while self.general.connection.connect.bool_value:
             self.general.info.state_ = const.State.BUSY
-            self.general.info.battery_level.value = self.camera.get_battery_level()
-            self.general.info.state_ = const.State.OK
+            try:
+                self.general.info.battery_level.value = self.camera.get_battery_level()
+                self.general.info.state_ = const.State.OK
+            except:
+                self.general.info.battery_level.value = 'ERROR'
+                self.general.info.state_ = const.State.ALERT
+                raise
             time.sleep(self.BATTERY_CHECK_INTERVAL)
+
+    def quality_changed(self, sender):
+        self.camera.set_format(
+            raw=self.settings.quality.raw.bool_value,
+            jpeg=self.settings.quality.compress.bool_value,
+        )
