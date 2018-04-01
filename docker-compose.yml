@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  telescopy:
+    build:
+      context: .
+    image: wlatanowicz/telescopy
+    restart: always
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - /storage:/app/storage
+    ports:
+      - "8000:8000"
+      - "7624:7624"
+    environment:
+      - ENABLE_SIMULATORS=False
+    privileged: true
+    command: python server.py

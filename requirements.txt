@@ -1,2 +1,2 @@
-indipy>=0.1
+git+https://github.com/wlatanowicz/indipy.git
 requests==2.18.4

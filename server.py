@@ -5,9 +5,12 @@ from indi.routing import Router
 from indi.transport.server import TCP as TCPServer
 
 from telescopy.http import HttpServer
+from telescopy import settings
 
+import telescopy.devices
 
-from telescopy.devices import *
+if settings.ENABLE_SIMULATORS:
+    import telescopy_sims.devices
 
 HttpServer.start()
 
