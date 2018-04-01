@@ -4,6 +4,7 @@ import socketserver
 import os
 import posixpath
 import urllib.parse
+from http import HTTPStatus
 
 from . import settings
 
@@ -37,6 +38,19 @@ class HttpServer:
                     path += '/'
                 return path
 
+            def do_DELETE(self):
+                path = self.translate_path(self.path)
+                if os.path.isfile(path):
+                    try:
+                        os.unlink(path)
+                        self.send_response(HTTPStatus.OK)
+                        self.end_headers()
+                    except:
+                        self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error")
+                else:
+                    self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+
+        socketserver.TCPServer.allow_reuse_address = True
         with socketserver.TCPServer(("", settings.HTTP_PORT), HttpHandler) as httpd:
             httpd.serve_forever()
 
