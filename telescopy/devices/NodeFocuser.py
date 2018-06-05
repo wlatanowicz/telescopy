@@ -1,4 +1,5 @@
 import threading
+import time
 
 from indi.device import Driver
 from indi.device.pool import DevicePool
@@ -44,9 +45,10 @@ class NodeFocuser(Driver):
         'POSITION',
         enabled=False,
         vectors=dict(
-            position=properties.Standard('ABS_FOCUS_POSITION', onchange='reposition'),
+            position=properties.Standard('ABS_FOCUS_POSITION'),
         )
     )
+    position.position.position.onwrite = 'reposition'
 
     def connect(self, sender):
         connected = self.general.connection.connect.bool_value
@@ -57,11 +59,15 @@ class NodeFocuser(Driver):
         self.position.enabled = connected
         self.general.info.enabled = connected
 
-    def reposition(self, sender):
+    def reposition(self, sender, value):
         def worker():
             self.position.position.state_ = const.State.BUSY
             try:
-                self.focuser.set_position(self.position.position.position.value)
+                self.focuser.set_position(value, wait=False)
+                while abs(float(sender.value) - float(value)) > 0.01:
+                    time.sleep(1)
+                    sender.value = self.focuser.get_position()
+
                 self.position.position.state_ = const.State.OK
             except:
                 self.position.position.state_ = const.State.ALERT

@@ -120,11 +120,12 @@ class SonySLTA58(Driver):
         self.settings.enabled = connected
         self.images.enabled = connected
 
-    def expose(self, sender):
+    def expose(self, sender, value):
         def worker():
             self.exposition.exposure.state_ = const.State.BUSY
             file_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')
-            imgs = self.camera.expose(float(self.exposition.exposure.time.value))
+            self.exposition.exposure.time.value = value
+            imgs = self.camera.expose(float(value))
 
             if self.settings.upload_mode.selected_value in ('UPLOAD_LOCAL', 'UPLOAD_BOTH',):
                 save_dir = os.path.join(settings.PUB_DIR, self.name)
@@ -146,7 +147,7 @@ class SonySLTA58(Driver):
         w = threading.Thread(target=worker, daemon=True)
         w.start()
 
-    def iso_changed(self, sender):
+    def iso_changed(self, sender, **kwargs):
         def worker():
             self.settings.iso.state_ = const.State.BUSY
             self.camera.set_iso(self.settings.iso.selected_value)
@@ -166,7 +167,7 @@ class SonySLTA58(Driver):
                 raise
             time.sleep(self.BATTERY_CHECK_INTERVAL)
 
-    def quality_changed(self, sender):
+    def quality_changed(self, sender, **kwargs):
         self.camera.set_format(
             raw=self.settings.quality.raw.bool_value,
             jpeg=self.settings.quality.compress.bool_value,
