@@ -8,6 +8,8 @@ class NodeMCU:
     SETTLE_WAIT = 2
     TIMEOUT = 120
 
+    HTTP_TIMEOUT = 5.0
+
     TIME_PER_STEP = 0.01
     TIME_START_STOP = 2
 
@@ -55,12 +57,12 @@ class NodeMCU:
 
         r = None
         if method == 'GET':
-            r = requests.get(full_url)
+            r = requests.get(full_url, timeout=self.HTTP_TIMEOUT)
         if method == 'POST':
-            r = requests.post(full_url + '?targetPosition=' + str(position))
+            r = requests.post(full_url + '?targetPosition=' + str(position), timeout=self.HTTP_TIMEOUT)
         if method == 'PATCH':
-            r = requests.patch(full_url, '?position=' + str(position))
+            r = requests.patch(full_url, '?position=' + str(position), timeout=self.HTTP_TIMEOUT)
         resp = r.json()
         if resp['result'] != 'OK':
-            raise Exception()
+            raise Exception('Invalid response from focuser')
         return resp

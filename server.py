@@ -3,6 +3,7 @@
 from indi.device.pool import DevicePool
 from indi.routing import Router
 from indi.transport.server import TCP as TCPServer
+from indi.logging import logger, Handler
 
 from telescopy.http import HttpServer
 from telescopy import settings
@@ -15,6 +16,8 @@ if settings.ENABLE_SIMULATORS:
 HttpServer.start()
 
 router = Router()
+
+logger.addHandler(Handler(router))
 
 DevicePool.init(router)
 

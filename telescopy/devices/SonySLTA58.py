@@ -3,10 +3,11 @@ import datetime
 import os
 import time
 
-from indi.device import Driver
+from indi.device import Driver, non_blocking
 from indi.device.pool import DevicePool
 from indi.device import properties
 from indi.message import const
+from indi.logging import logger
 
 from telescopy.devices.hardware.camera.SonySLTA58 import SonySLTA58 as SonySLTA58_hw
 from telescopy import settings
@@ -26,7 +27,7 @@ class SonySLTA58(Driver):
     general = properties.Group(
         'GENERAL',
         vectors=dict(
-            connection=properties.Standard('CONNECTION', onchange='connect'),
+            connection=properties.Standard('CONNECTION'),
             info=properties.TextVector(
                 'INFO',
                 enabled=False,
@@ -47,6 +48,7 @@ class SonySLTA58(Driver):
             )
         )
     )
+    general.connection.connect.onwrite = 'connect'
 
     settings = properties.Group(
         'SETTINGS',
@@ -96,33 +98,55 @@ class SonySLTA58(Driver):
         )
     )
 
-    def connect(self, sender):
-        connected = self.general.connection.connect.bool_value
-
+    @non_blocking
+    def connect(self, sender, value):
+        self.general.connection.state_ = const.State.BUSY
+        connected = value == const.SwitchState.ON
         if connected:
-            self.settings.iso.reset_selected_value(self.camera.get_iso())
+            try:
+                try:
+                    self.settings.iso.reset_selected_value(self.camera.get_iso())
+                except Exception:
+                    logger.error('Cannot read iso setting from camera', extra={'device': self})
+                    raise
 
-            quality = self.camera.get_format()
-            self.settings.quality.compress.reset_bool_value('jpeg' in quality)
-            self.settings.quality.raw.reset_bool_value('raw' in quality)
+                try:
+                    quality = self.camera.get_format()
+                    self.settings.quality.compress.reset_bool_value('jpeg' in quality)
+                    self.settings.quality.raw.reset_bool_value('raw' in quality)
+                except Exception:
+                    logger.error('Cannot read quality setting from camera')
+                    raise
 
-            self.general.info.manufacturer.value = self.camera.get_manufacturer()
-            self.general.info.camera_model.value = self.camera.get_camera_model()
-            self.general.info.device_version.value = self.camera.get_device_version()
-            self.general.info.serial_number.value = self.camera.get_serial_number()
+                try:
+                    self.general.info.manufacturer.value = self.camera.get_manufacturer()
+                    self.general.info.camera_model.value = self.camera.get_camera_model()
+                    self.general.info.device_version.value = self.camera.get_device_version()
+                    self.general.info.serial_number.value = self.camera.get_serial_number()
+                except Exception:
+                    logger.error('Cannot read properties from camera')
+                    raise
 
-            if self.battcheck is None or not self.battcheck.is_alive():
-                self.battcheck = threading.Thread(target=self.get_battery_level, daemon=True)
-                self.battcheck.start()
+                if self.battcheck is None or not self.battcheck.is_alive():
+                    self.battcheck = threading.Thread(target=self.get_battery_level, daemon=True)
+                    self.battcheck.start()
 
+                self.general.connection.state_ = const.State.OK
+            except Exception:
+                connected = False
+                self.general.connection.state_ = const.State.ALERT
+
+        self.general.connection.connect.bool_value = connected
         self.general.info.enabled = connected
         self.exposition.enabled = connected
         self.settings.enabled = connected
         self.images.enabled = connected
 
+
+    @non_blocking
     def expose(self, sender, value):
-        def worker():
-            self.exposition.exposure.state_ = const.State.BUSY
+        self.exposition.exposure.state_ = const.State.BUSY
+        try:
             file_name = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')
             self.exposition.exposure.time.value = value
             imgs = self.camera.expose(float(value))
@@ -141,19 +165,19 @@ class SonySLTA58(Driver):
                         f.write(data)
 
                     getattr(self.images.last_url, ext).value = rel_path
+        except Exception:
+            self.exposition.exposure.state_ = const.State.ALERT
 
-            self.exposition.exposure.state_ = const.State.OK
+        self.exposition.exposure.state_ = const.State.OK
 
-        w = threading.Thread(target=worker, daemon=True)
-        w.start()
-
+    @non_blocking
     def iso_changed(self, sender, **kwargs):
-        def worker():
-            self.settings.iso.state_ = const.State.BUSY
+        self.settings.iso.state_ = const.State.BUSY
+        try:
             self.camera.set_iso(self.settings.iso.selected_value)
             self.settings.iso.state_ = const.State.OK
-        w = threading.Thread(target=worker, daemon=True)
-        w.start()
+        except Exception:
+            self.settings.iso.state_ = const.State.ALERT
 
     def get_battery_level(self):
         while self.general.connection.connect.bool_value:
@@ -164,11 +188,16 @@ class SonySLTA58(Driver):
             except:
                 self.general.info.battery_level.value = 'ERROR'
                 self.general.info.state_ = const.State.ALERT
-                raise
             time.sleep(self.BATTERY_CHECK_INTERVAL)
 
+    @non_blocking
     def quality_changed(self, sender, **kwargs):
-        self.camera.set_format(
-            raw=self.settings.quality.raw.bool_value,
-            jpeg=self.settings.quality.compress.bool_value,
-        )
+        self.settings.quality.state_ = const.State.BUSY
+        try:
+            self.camera.set_format(
+                raw=self.settings.quality.raw.bool_value,
+                jpeg=self.settings.quality.compress.bool_value,
+            )
+            self.settings.quality.state_ = const.State.OK
+        except Exception:
+            self.settings.quality.state_ = const.State.ALERT

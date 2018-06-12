@@ -4,6 +4,10 @@ import threading
 from telescopy import settings
 
 
+class GphotoException(Exception):
+    pass
+
+
 class Gphoto:
     def __init__(self, model):
         self.model = model
@@ -12,21 +16,24 @@ class Gphoto:
     def exec_gphoto(self, cmd):
         gphoto_bin = settings.GPHOTO_PATH
         full_cmd = f'{gphoto_bin} --camera="{self.model}" --quiet {cmd}'
-        self.lock.acquire()
         try:
-            f = os.popen(full_cmd)
-            result = f.read()
-        finally:
-            self.lock.release()
-        return result
+            self.lock.acquire()
+            try:
+                f = os.popen(full_cmd)
+                result = f.read()
+            finally:
+                self.lock.release()
+            return result
+        except Exception as e:
+            raise GphotoException(f'Cannon exec gphoto command ({full_cmd})')
 
     def get_camera_config(self, config):
         try:
             return self._get_current_config(
                 self.exec_gphoto(f'--get-config {config}')
             )
-        except Exception:
-            raise Exception(f'Cannot read current setting for {config}')
+        except GphotoException as e:
+            raise GphotoException(f'Cannot read current setting for {config}')
 
     def set_camera_config(self, config, value=None, index=None):
         if value is not None:
@@ -39,7 +46,7 @@ class Gphoto:
         for line in cmd_output.splitlines():
             if line.startswith(search):
                 return line[len(search):]
-        raise Exception('Cannot read current setting')
+        raise GphotoException('Cannot read current setting: no data in gphoto output')
 
     def get_time_as_string(self, time, options, bulb='bulb'):
         for opt in options:

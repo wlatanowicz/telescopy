@@ -1,10 +1,10 @@
-import threading
 import time
 
-from indi.device import Driver
+from indi.device import Driver, non_blocking
 from indi.device.pool import DevicePool
 from indi.device import properties
 from indi.message import const
+from indi.logging import logger
 
 from telescopy.devices.hardware.focuser.NodeMCU import NodeMCU
 from telescopy import settings
@@ -21,7 +21,7 @@ class NodeFocuser(Driver):
     general = properties.Group(
         'GENERAL',
         vectors=dict(
-            connection=properties.Standard('CONNECTION', onchange='connect'),
+            connection=properties.Standard('CONNECTION'),
             info=properties.TextVector(
                 'INFO',
                 enabled=False,
@@ -40,6 +40,7 @@ class NodeFocuser(Driver):
             )
         )
     )
+    general.connection.connect.onwrite = 'connect'
 
     position = properties.Group(
         'POSITION',
@@ -50,28 +51,34 @@ class NodeFocuser(Driver):
     )
     position.position.position.onwrite = 'reposition'
 
-    def connect(self, sender):
-        connected = self.general.connection.connect.bool_value
+    @non_blocking
+    def connect(self, sender, value):
+        connected = value == const.SwitchState.ON
+        self.general.connection.state_ = const.State.BUSY
 
         if connected:
-            self.position.position.position.reset_value(self.focuser.get_position())
+            try:
+                self.position.position.position.reset_value(self.focuser.get_position())
+                self.general.connection.state_ = const.State.OK
+            except Exception as e:
+                self.general.connection.state_ = const.State.ALERT
+                connected = False
+                logger.error(e)
 
+        self.general.connection.connect.bool_value = connected
         self.position.enabled = connected
         self.general.info.enabled = connected
 
+    @non_blocking
     def reposition(self, sender, value):
-        def worker():
-            self.position.position.state_ = const.State.BUSY
-            try:
-                self.focuser.set_position(value, wait=False)
-                while abs(float(sender.value) - float(value)) > 0.01:
-                    time.sleep(1)
-                    sender.value = self.focuser.get_position()
+        self.position.position.state_ = const.State.BUSY
+        try:
+            self.focuser.set_position(value, wait=False)
+            while abs(float(self.position.position.position.value) - float(value)) > 0.01:
+                time.sleep(1)
+                self.position.position.position.value = self.focuser.get_position()
 
-                self.position.position.state_ = const.State.OK
-            except:
-                self.position.position.state_ = const.State.ALERT
-                raise
-
-        w = threading.Thread(target=worker, daemon=True)
-        w.start()
+            self.position.position.state_ = const.State.OK
+        except Exception as e:
+            self.position.position.state_ = const.State.ALERT
+            logger.error(e)
