@@ -1,0 +1,14 @@
+{
+  "compile": [
+    "*.py",
+    "lib/*.py",
+    "lib/**/*.py",
+    "lib/uasyncio/**/*.py"
+  ],
+  "publish": [
+    "*.mpy",
+    "lib/*.mpy",
+    "lib/**/*.mpy",
+    "lib/uasyncio/**/*.mpy"
+  ]
+}
