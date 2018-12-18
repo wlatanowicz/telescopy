@@ -1,5 +1,6 @@
 import uasyncio
 import machine
+import const
 from lib.uasyncio.websocket.server import WSReader, WSWriter
 
 
@@ -28,35 +29,49 @@ class WriterPool:
 
 
 class DeviceHandler:
-    MAX_POSITION = 4000
+    MAX_POSITION = const(4000)
+    HOME_POSITION = const(0)
+
+    TRIGGER_ENTER = const(0)
+    TRIGGER_LEAVE = const(1)
 
     position = 0
 
     steps = 0
     step_dir = 1
+    go_home = False
 
     pin_dir = machine.Pin(10, machine.Pin.OUT)
     pin_step = machine.Pin(12, machine.Pin.OUT)
 
-    sensor1_triggered = False
-    sensor2_triggered = False
+    sensor_triggered = False
+    sensor_trigger_type = None
+
+    trigger_position = (3990, 10)
 
     @classmethod
     def setup_irq(cls):
-        pin_sensor1 = machine.Pin(4, machine.Pin.IN)
-        pin_sensor2 = machine.Pin(5, machine.Pin.IN)
+        pin_sensor = machine.Pin(4, machine.Pin.IN)
 
-        pin_sensor1.irq(trigger=machine.Pin.IRQ_FALLING, handler=cls.sensor1_trigger_handler)
-        pin_sensor2.irq(trigger=machine.Pin.IRQ_RISING, handler=cls.sensor2_trigger_handler)
+        pin_sensor.irq(trigger=machine.Pin.IRQ_FALLING, handler=cls.sensor_trigger_enter_handler)
+        pin_sensor.irq(trigger=machine.Pin.IRQ_RISING, handler=cls.sensor_trigger_leave_handler)
 
     @classmethod
     async def main(cls):
 
         while 1:
+            if cls.sensor_triggered:
+                cls.position_cal()
+
+            if cls.go_home and cls.position == cls.HOME_POSITION:
+                cls.steps = 0
+                cls.go_home = False
+
             if cls.steps > 0:
                 cls.steps -= 1
                 cls.position += cls.step_dir
 
+                cls.position = cls.normalize(cls.position)
                 if cls.position < 0:
                     cls.position += cls.MAX_POSITION
                 if cls.position > cls.MAX_POSITION:
@@ -78,11 +93,7 @@ class DeviceHandler:
 
         position = cls.position
 
-        cw_dist = target - position
-        if cw_dist < 0:
-            cw_dist += cls.MAX_POSITION
-
-        ccw_dist = cls.MAX_POSITION - cw_dist
+        cw_dist = ccw_dist = cls.dist(position, target)
 
         if cw_dist <= ccw_dist:
             cls.steps = cw_dist
@@ -94,16 +105,58 @@ class DeviceHandler:
         cls.pin_dir.value(1 if cls.step_dir > 0 else 0)
 
     @classmethod
+    def park(cls):
+        cls.step_dir = 1
+        cls.steps = cls.MAX_POSITION
+        cls.go_home = True
+
+    @classmethod
     async def send_position(cls):
         await WriterPool.write("pos:{}".format(cls.position))
 
     @classmethod
-    def sensor1_trigger_handler(cls):
-        cls.sensor1_triggered = True
+    def sensor_trigger_enter_handler(cls):
+        cls.sensor_trigger_type = cls.TRIGGER_ENTER
+        cls.sensor_triggered = True
 
     @classmethod
-    def sensor2_trigger_handler(cls):
-        cls.sensor2_triggered = True
+    def sensor_trigger_leave_handler(cls):
+        cls.sensor_trigger_type = cls.TRIGGER_LEAVE
+        cls.sensor_triggered = True
+
+    @classmethod
+    def position_cal(cls):
+        dir_index = 1 if cls.step_dir == 1 else 0
+        target = cls.normalize(cls.position + (cls.step_dir * cls.steps))
+
+        if cls.sensor_trigger_type == cls.TRIGGER_LEAVE:
+            dir_index = (dir_index + 1) % 2
+
+        cal_position = cls.trigger_position[dir_index]
+
+        cls.position = cal_position
+        cls.set_target(target)
+
+        cls.sensor_triggered = False
+        cls.sensor_trigger_type = None
+
+    @classmethod
+    def dist(cls, position, target):
+        cw_dist = target - position
+        if cw_dist < 0:
+            cw_dist += cls.MAX_POSITION
+
+        ccw_dist = cls.MAX_POSITION - cw_dist
+
+        return cw_dist, ccw_dist
+
+    @classmethod
+    def normalize(cls, position):
+        if position < 0:
+            return position + cls.MAX_POSITION
+        if position > cls.MAX_POSITION:
+            return position - cls.MAX_POSITION
+        return position
 
 
 async def conn_handler(reader, writer):
@@ -126,6 +179,9 @@ async def conn_handler(reader, writer):
 
         if l.startswith('pos:'):
             DeviceHandler.set_target(int(l[4:]))
+
+        if l.startswith('home'):
+            DeviceHandler.park()
 
     WriterPool.unregister(uid)
 
