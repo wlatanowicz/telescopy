@@ -1,6 +1,7 @@
 import uasyncio
 import machine
-import const
+import time
+#import const
 from lib.uasyncio.websocket.server import WSReader, WSWriter
 
 
@@ -29,11 +30,10 @@ class WriterPool:
 
 
 class DeviceHandler:
-    MAX_POSITION = const(4000)
-    HOME_POSITION = const(0)
-
-    TRIGGER_ENTER = const(0)
-    TRIGGER_LEAVE = const(1)
+    MAX_POSITION = 1334930
+    TRIGGER_PADDING = 25
+    HOME_POSITION = 0
+    BATCH_SIZE = 100
 
     position = 0
 
@@ -41,23 +41,23 @@ class DeviceHandler:
     step_dir = 1
     go_home = False
 
-    pin_dir = machine.Pin(10, machine.Pin.OUT)
-    pin_step = machine.Pin(12, machine.Pin.OUT)
+    pin_dir = machine.Pin(13, machine.Pin.OUT)  # D7
+    pin_step = machine.Pin(15, machine.Pin.OUT)  # D8
 
     sensor_triggered = False
-    sensor_trigger_type = None
-
-    trigger_position = (3990, 10)
+    trigger_position = (MAX_POSITION - TRIGGER_PADDING, HOME_POSITION + TRIGGER_PADDING)
 
     @classmethod
     def setup_irq(cls):
-        pin_sensor = machine.Pin(4, machine.Pin.IN)
+        pin_sensor = machine.Pin(6, machine.Pin.IN)  # GPIO 12 / D6
 
-        pin_sensor.irq(trigger=machine.Pin.IRQ_FALLING, handler=cls.sensor_trigger_enter_handler)
-        pin_sensor.irq(trigger=machine.Pin.IRQ_RISING, handler=cls.sensor_trigger_leave_handler)
+        # pin_sensor.irq(trigger=machine.Pin.IRQ_RISING, handler=cls.sensor_trigger_enter_handler)
 
     @classmethod
     async def main(cls):
+
+        send_interval = 100
+        send_in = send_interval
 
         while 1:
             if cls.sensor_triggered:
@@ -68,8 +68,14 @@ class DeviceHandler:
                 cls.go_home = False
 
             if cls.steps > 0:
-                cls.steps -= 1
-                cls.position += cls.step_dir
+
+                if cls.steps > 2 * cls.BATCH_SIZE:
+                    steps = cls.BATCH_SIZE
+                else:
+                    steps = cls.steps
+
+                cls.steps -= steps
+                cls.position += cls.step_dir * steps
 
                 cls.position = cls.normalize(cls.position)
                 if cls.position < 0:
@@ -77,14 +83,25 @@ class DeviceHandler:
                 if cls.position > cls.MAX_POSITION:
                     cls.position -= cls.MAX_POSITION
 
-                cls.pin_step.value(0)
-                await uasyncio.sleep_ms(10)
-                cls.pin_step.value(1)
-                await uasyncio.sleep_ms(10)
+                cls.batch_step(steps)
+
+                await uasyncio.sleep_ms(1)
             else:
                 await uasyncio.sleep_ms(20)
 
-            await cls.send_position()
+            if send_in > 0:
+                send_in -= 1
+            else:
+                send_in = send_interval
+                await cls.send_position()
+
+    @classmethod
+    def batch_step(cls, batch_size):
+        for i in range(0, batch_size):
+            time.sleep_us(50)
+            cls.pin_step.value(0)
+            time.sleep_us(50)
+            cls.pin_step.value(1)
 
     @classmethod
     def set_target(cls, target):
@@ -93,7 +110,7 @@ class DeviceHandler:
 
         position = cls.position
 
-        cw_dist = ccw_dist = cls.dist(position, target)
+        cw_dist, ccw_dist = cls.dist(position, target)
 
         if cw_dist <= ccw_dist:
             cls.steps = cw_dist
@@ -116,12 +133,6 @@ class DeviceHandler:
 
     @classmethod
     def sensor_trigger_enter_handler(cls):
-        cls.sensor_trigger_type = cls.TRIGGER_ENTER
-        cls.sensor_triggered = True
-
-    @classmethod
-    def sensor_trigger_leave_handler(cls):
-        cls.sensor_trigger_type = cls.TRIGGER_LEAVE
         cls.sensor_triggered = True
 
     @classmethod
@@ -129,21 +140,17 @@ class DeviceHandler:
         dir_index = 1 if cls.step_dir == 1 else 0
         target = cls.normalize(cls.position + (cls.step_dir * cls.steps))
 
-        if cls.sensor_trigger_type == cls.TRIGGER_LEAVE:
-            dir_index = (dir_index + 1) % 2
-
         cal_position = cls.trigger_position[dir_index]
 
         cls.position = cal_position
         cls.set_target(target)
 
         cls.sensor_triggered = False
-        cls.sensor_trigger_type = None
 
     @classmethod
     def dist(cls, position, target):
         cw_dist = target - position
-        if cw_dist < 0:
+        if cw_dist < cls.HOME_POSITION:
             cw_dist += cls.MAX_POSITION
 
         ccw_dist = cls.MAX_POSITION - cw_dist
@@ -186,10 +193,11 @@ async def conn_handler(reader, writer):
     WriterPool.unregister(uid)
 
 
-machine.freq(160000000)
+def start_dome():
+    machine.freq(160000000)
 
-loop = uasyncio.get_event_loop()
-loop.create_task(DeviceHandler.main())
-loop.create_task(uasyncio.start_server(conn_handler, "0.0.0.0", 8081))
-loop.run_forever()
-loop.close()
+    loop = uasyncio.get_event_loop()
+    loop.create_task(DeviceHandler.main())
+    loop.create_task(uasyncio.start_server(conn_handler, "0.0.0.0", 8081))
+    loop.run_forever()
+    loop.close()
