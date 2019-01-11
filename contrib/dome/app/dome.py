@@ -35,17 +35,29 @@ class DeviceHandler:
     HOME_POSITION = 0
     BATCH_SIZE = 100
 
-    position = 0
+    DIR_CW = 1
+    DIR_CCW = -1
+
+    BROADCAST_INTERVAL = 100
+
+    position = HOME_POSITION
 
     steps = 0
-    step_dir = 1
-    go_home = False
+    step_dir = DIR_CW
 
     pin_dir = machine.Pin(13, machine.Pin.OUT)  # D7
     pin_step = machine.Pin(15, machine.Pin.OUT)  # D8
 
     sensor_triggered = False
     trigger_position = (MAX_POSITION - TRIGGER_PADDING, HOME_POSITION + TRIGGER_PADDING)
+
+    OP_IDLE = 0
+    OP_GO = 1
+    OP_ROT = 2
+    OP_RESET = 3
+    OP_RESET_STAGE_2 = 4
+
+    operation = OP_IDLE
 
     @classmethod
     def setup_irq(cls):
@@ -56,16 +68,11 @@ class DeviceHandler:
     @classmethod
     async def main(cls):
 
-        send_interval = 100
-        send_in = send_interval
+        send_in = cls.BROADCAST_INTERVAL
 
         while 1:
             if cls.sensor_triggered:
                 cls.position_cal()
-
-            if cls.go_home and cls.position == cls.HOME_POSITION:
-                cls.steps = 0
-                cls.go_home = False
 
             if cls.steps > 0:
 
@@ -86,13 +93,16 @@ class DeviceHandler:
                 cls.batch_step(steps)
 
                 await uasyncio.sleep_ms(1)
+            elif cls.operation == cls.OP_RESET:
+                cls.reset(cls.OP_RESET_STAGE_2)
             else:
+                cls.operation = cls.OP_IDLE
                 await uasyncio.sleep_ms(20)
 
             if send_in > 0:
                 send_in -= 1
             else:
-                send_in = send_interval
+                send_in = cls.BROADCAST_INTERVAL
                 await cls.send_position()
 
     @classmethod
@@ -105,27 +115,44 @@ class DeviceHandler:
 
     @classmethod
     def set_target(cls, target):
-        if target > cls.MAX_POSITION or target < 0:
+        if target > cls.MAX_POSITION or target < cls.HOME_POSITION:
             return
 
         position = cls.position
+        cls.operation = cls.OP_GO
 
         cw_dist, ccw_dist = cls.dist(position, target)
 
         if cw_dist <= ccw_dist:
             cls.steps = cw_dist
-            cls.step_dir = 1
+            cls.step_dir = cls.DIR_CW
         else:
             cls.steps = ccw_dist
-            cls.step_dir = -1
+            cls.step_dir = cls.DIR_CCW
 
-        cls.pin_dir.value(1 if cls.step_dir > 0 else 0)
+        cls.pin_dir.value(1 if cls.step_dir == cls.DIR_CW else 0)
 
     @classmethod
     def park(cls):
-        cls.step_dir = 1
-        cls.steps = cls.MAX_POSITION
-        cls.go_home = True
+        cls.set_target(cls.HOME_POSITION)
+
+    @classmethod
+    def full_rotate(cls, dir=DIR_CW):
+        cls.step_dir = dir
+        cls.steps = cls.MAX_POSITION - cls.HOME_POSITION
+        cls.operation = cls.OP_ROT
+
+    @classmethod
+    def reset(cls, stage=OP_RESET):
+        if stage == cls.OP_RESET:
+            cls.step_dir = cls.DIR_CCW
+            cls.steps = cls.TRIGGER_PADDING * 1
+            cls.operation = cls.OP_RESET
+
+        if stage == cls.OP_RESET_STAGE_2:
+            cls.step_dir = cls.DIR_CW
+            cls.steps = cls.MAX_POSITION - cls.HOME_POSITION
+            cls.operation = cls.OP_RESET_STAGE_2
 
     @classmethod
     async def send_position(cls):
@@ -143,7 +170,11 @@ class DeviceHandler:
         cal_position = cls.trigger_position[dir_index]
 
         cls.position = cal_position
-        cls.set_target(target)
+
+        if cls.operation == cls.OP_RESET_STAGE_2:
+            cls.park()
+        else:
+            cls.set_target(target)
 
         cls.sensor_triggered = False
 
@@ -187,8 +218,17 @@ async def conn_handler(reader, writer):
         if l.startswith('pos:'):
             DeviceHandler.set_target(int(l[4:]))
 
-        if l.startswith('home'):
+        elif l.startswith('home'):
             DeviceHandler.park()
+
+        elif l.startswith('reset'):
+            DeviceHandler.reset()
+
+        elif l.startswith('rot:ccw'):
+            DeviceHandler.full_rotate(DeviceHandler.DIR_CCW)
+
+        elif l.startswith('rot'):
+            DeviceHandler.full_rotate(DeviceHandler.DIR_CW)
 
     WriterPool.unregister(uid)
 
