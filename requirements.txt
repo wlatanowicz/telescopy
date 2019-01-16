@@ -1,4 +1,4 @@
 git+https://github.com/wlatanowicz/indipy
 requests==2.18.4
 git+https://github.com/Pithikos/python-websocket-server
-
+websocket-client==0.54.0

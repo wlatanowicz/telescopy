@@ -1,1 +1,2 @@
 git+https://github.com/wlatanowicz/telescopy-sims.git
+ddt==1.1.2
