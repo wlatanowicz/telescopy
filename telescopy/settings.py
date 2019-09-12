@@ -8,6 +8,8 @@ def _to_bool(v):
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 HTTP_PORT = 8000
+BASE_HTTP_URL = f'http://localhost:{HTTP_PORT}/'
+
 PUB_DIR = os.path.join(BASE_DIR, 'pub')
 
 GPHOTO_PATH = 'gphoto2'

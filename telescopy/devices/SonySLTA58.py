@@ -164,7 +164,7 @@ class SonySLTA58(Driver):
                     with open(file_path, mode='wb') as f:
                         f.write(data)
 
-                    getattr(self.images.last_url, ext).value = rel_path
+                    getattr(self.images.last_url, ext).value = settings.BASE_HTTP_URL + rel_path
         except Exception:
             self.exposition.exposure.state_ = const.State.ALERT
 
