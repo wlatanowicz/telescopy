@@ -71,7 +71,7 @@ class SonySLTA58:
         '30',
     ]
 
-    bulb = 'bulb'
+    bulb = 'Bulb'
 
     extensions = ['jpg', 'arw']
 
