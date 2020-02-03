@@ -2,15 +2,18 @@ import threading
 import datetime
 import os
 import time
+import logging
 
 from indi.device import Driver, non_blocking
 from indi.device.pool import DevicePool
 from indi.device import properties
 from indi.message import const
-from indi.logging import logger
 
 from telescopy.devices.hardware.camera.SonySLTA58 import SonySLTA58 as SonySLTA58_hw
 from telescopy import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 @DevicePool.register

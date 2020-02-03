@@ -1,13 +1,16 @@
 import time
+import logging
 
 from indi.device import Driver, non_blocking
 from indi.device.pool import DevicePool
 from indi.device import properties
 from indi.message import const
-from indi.logging import logger
 
 from telescopy.devices.hardware.focuser.NodeMCU import NodeMCU
 from telescopy import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 @DevicePool.register

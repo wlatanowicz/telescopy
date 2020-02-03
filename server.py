@@ -1,12 +1,23 @@
 #!/usr/bin/env python
 
+import threading
+import logging
+
+from logging import config
 from indi.device.pool import DevicePool
 from indi.routing import Router
 from indi.transport.server import TCP as TCPServer
-from indi.logging import logger, Handler
+from indi.transport.server import WebSocket as WebSocketServer
 
 from telescopy.http import HttpServer
 from telescopy import settings
+
+
+router = Router()
+
+settings.LOGGING['handlers']['indi']['router'] = [router]
+config.dictConfig(settings.LOGGING)
+
 
 import telescopy.devices
 
@@ -15,11 +26,24 @@ if settings.ENABLE_SIMULATORS:
 
 HttpServer.start()
 
-router = Router()
-
-logger.addHandler(Handler(router))
 
 DevicePool.init(router)
 
-server = TCPServer(router=router)
-server.start()
+tcp_server = TCPServer(router=router)
+ws_server = WebSocketServer(router=router)
+
+tcp_th = threading.Thread(
+    target=tcp_server.start,
+    daemon=True,
+)
+
+ws_th = threading.Thread(
+    target=ws_server.start,
+    daemon=True,
+)
+
+tcp_th.start()
+ws_th.start()
+
+while True:
+    pass
