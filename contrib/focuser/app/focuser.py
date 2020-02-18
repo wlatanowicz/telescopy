@@ -1,7 +1,8 @@
 import uasyncio
 import machine
 import time
-#import const
+
+# import const
 from lib.uasyncio.websocket.server import WSReader, WSWriter
 
 
@@ -118,13 +119,19 @@ class DeviceHandler:
 
     @classmethod
     async def send_position(cls):
-        dir = 'up' if cls.step_dir == cls.DIR_UP else 'down'
+        dir = "up" if cls.step_dir == cls.DIR_UP else "down"
         if cls.steps == 0:
-            status = 'idle'
+            status = "idle"
         else:
-            status = 'go'
+            status = "go"
 
-        status = '{' + '"position": {}, "direction": "{}", "status": "{}"\}'.format(cls.position, dir, status) + '}'
+        status = (
+            "{"
+            + '"position": {}, "direction": "{}", "status": "{}"\}'.format(
+                cls.position, dir, status
+            )
+            + "}"
+        )
         await WriterPool.write(status)
 
 
@@ -146,13 +153,13 @@ async def conn_handler(reader, writer):
             log("Disconnecting")
             break
 
-        if l.startswith('pos:'):
+        if l.startswith("pos:"):
             DeviceHandler.set_target(int(l[4:]))
 
-        elif l.startswith('home'):
+        elif l.startswith("home"):
             DeviceHandler.park()
 
-        elif l.startswith('reset:'):
+        elif l.startswith("reset:"):
             DeviceHandler.reset(int(l[6:]))
 
     WriterPool.unregister(uid)

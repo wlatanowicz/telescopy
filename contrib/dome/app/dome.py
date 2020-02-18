@@ -1,7 +1,8 @@
 import uasyncio
 import machine
 import time
-#import const
+
+# import const
 from lib.uasyncio.websocket.server import WSReader, WSWriter
 
 
@@ -157,19 +158,25 @@ class DeviceHandler:
 
     @classmethod
     async def send_status(cls):
-        dir = 'cw' if cls.step_dir == cls.DIR_CW else 'ccw'
+        dir = "cw" if cls.step_dir == cls.DIR_CW else "ccw"
         if cls.position == cls.HOME_POSITION and cls.operation == cls.OP_IDLE:
-            status = 'parked'
+            status = "parked"
         elif cls.operation == cls.OP_IDLE:
-            status = 'idle'
-        elif cls.operation in (cls.OP_RESET, cls.OP_RESET_STAGE_2, ):
-            status = 'reset'
+            status = "idle"
+        elif cls.operation in (cls.OP_RESET, cls.OP_RESET_STAGE_2,):
+            status = "reset"
         elif cls.operation == cls.OP_ROT:
-            status = 'rotate'
+            status = "rotate"
         else:
-            status = 'go'
+            status = "go"
 
-        status = '{' + '"position": {}, "direction": "{}", "status": "{}"\}'.format(cls.position, dir, status) + '}'
+        status = (
+            "{"
+            + '"position": {}, "direction": "{}", "status": "{}"\}'.format(
+                cls.position, dir, status
+            )
+            + "}"
+        )
         await WriterPool.write(status)
 
     @classmethod
@@ -229,19 +236,19 @@ async def conn_handler(reader, writer):
             log("Disconnecting")
             break
 
-        if l.startswith('pos:'):
+        if l.startswith("pos:"):
             DeviceHandler.set_target(int(l[4:]))
 
-        elif l.startswith('home'):
+        elif l.startswith("home"):
             DeviceHandler.park()
 
-        elif l.startswith('reset'):
+        elif l.startswith("reset"):
             DeviceHandler.reset()
 
-        elif l.startswith('rot:ccw'):
+        elif l.startswith("rot:ccw"):
             DeviceHandler.full_rotate(DeviceHandler.DIR_CCW)
 
-        elif l.startswith('rot'):
+        elif l.startswith("rot"):
             DeviceHandler.full_rotate(DeviceHandler.DIR_CW)
 
     WriterPool.unregister(uid)

@@ -15,7 +15,7 @@ from telescopy import settings
 
 router = Router()
 
-settings.LOGGING['handlers']['indi']['router'] = [router]
+settings.LOGGING["handlers"]["indi"]["router"] = [router]
 config.dictConfig(settings.LOGGING)
 
 
@@ -32,15 +32,9 @@ DevicePool.init(router)
 tcp_server = TCPServer(router=router)
 ws_server = WebSocketServer(router=router)
 
-tcp_th = threading.Thread(
-    target=tcp_server.start,
-    daemon=True,
-)
+tcp_th = threading.Thread(target=tcp_server.start, daemon=True,)
 
-ws_th = threading.Thread(
-    target=ws_server.start,
-    daemon=True,
-)
+ws_th = threading.Thread(target=ws_server.start, daemon=True,)
 
 tcp_th.start()
 ws_th.start()

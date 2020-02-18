@@ -23,7 +23,7 @@ class NodeMCU:
             diff = abs(float(current_position) - float(position))
             initial_wait = self.TIME_START_STOP + diff * self.TIME_PER_STEP
 
-        self._do_request('POST', position=position)
+        self._do_request("POST", position=position)
 
         if wait:
             time.sleep(math.ceil(initial_wait))
@@ -46,23 +46,27 @@ class NodeMCU:
             time.sleep(self.SETTLE_WAIT)
 
     def get_position(self):
-        resp = self._do_request('GET')
-        return int(resp['position'])
+        resp = self._do_request("GET")
+        return int(resp["position"])
 
     def reset_position(self, position):
-        self._do_request('PATCH', position=position)
+        self._do_request("PATCH", position=position)
 
     def _do_request(self, method, position=None):
-        full_url = f'http://{self.ip}/'
+        full_url = f"http://{self.ip}/"
 
         r = None
-        if method == 'GET':
+        if method == "GET":
             r = requests.get(full_url, timeout=self.HTTP_TIMEOUT)
-        if method == 'POST':
-            r = requests.post(full_url + '?targetPosition=' + str(position), timeout=self.HTTP_TIMEOUT)
-        if method == 'PATCH':
-            r = requests.patch(full_url, '?position=' + str(position), timeout=self.HTTP_TIMEOUT)
+        if method == "POST":
+            r = requests.post(
+                full_url + "?targetPosition=" + str(position), timeout=self.HTTP_TIMEOUT
+            )
+        if method == "PATCH":
+            r = requests.patch(
+                full_url, "?position=" + str(position), timeout=self.HTTP_TIMEOUT
+            )
         resp = r.json()
-        if resp['result'] != 'OK':
-            raise Exception('Invalid response from focuser')
+        if resp["result"] != "OK":
+            raise Exception("Invalid response from focuser")
         return resp

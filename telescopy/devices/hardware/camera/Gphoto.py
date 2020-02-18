@@ -25,30 +25,28 @@ class Gphoto:
                 self.lock.release()
             return result
         except Exception as e:
-            raise GphotoException(f'Cannon exec gphoto command ({full_cmd})')
+            raise GphotoException(f"Cannon exec gphoto command ({full_cmd})")
 
     def get_camera_config(self, config):
         try:
-            return self._get_current_config(
-                self.exec_gphoto(f'--get-config {config}')
-            )
+            return self._get_current_config(self.exec_gphoto(f"--get-config {config}"))
         except GphotoException as e:
-            raise GphotoException(f'Cannot read current setting for {config}')
+            raise GphotoException(f"Cannot read current setting for {config}")
 
     def set_camera_config(self, config, value=None, index=None):
         if value is not None:
-            self.exec_gphoto(f'--set-config {config}={value}')
+            self.exec_gphoto(f"--set-config {config}={value}")
         elif index is not None:
-            self.exec_gphoto(f'--set-config-index {config}={index}')
+            self.exec_gphoto(f"--set-config-index {config}={index}")
 
     def _get_current_config(self, cmd_output):
-        search = 'Current: '
+        search = "Current: "
         for line in cmd_output.splitlines():
             if line.startswith(search):
-                return line[len(search):]
-        raise GphotoException('Cannot read current setting: no data in gphoto output')
+                return line[len(search) :]
+        raise GphotoException("Cannot read current setting: no data in gphoto output")
 
-    def get_time_as_string(self, time, options, bulb='bulb'):
+    def get_time_as_string(self, time, options, bulb="bulb"):
         for opt in options:
             opt_float = self._float_from_string(opt)
 
@@ -58,7 +56,7 @@ class Gphoto:
         return bulb
 
     def _float_from_string(self, string):
-        if '/' in string:
-            numerator, denominator = string.split('/')
+        if "/" in string:
+            numerator, denominator = string.split("/")
             return float(numerator) / float(denominator)
         return float(string)

@@ -5,7 +5,7 @@ from indi.device import properties
 
 @DevicePool.register
 class OneProxy(Proxy):
-    name = 'ONE_PROXY'
+    name = "ONE_PROXY"
 
-    address = 'localhost'
+    address = "localhost"
     port = 7625

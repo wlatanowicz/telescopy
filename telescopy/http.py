@@ -15,16 +15,16 @@ class HttpServer:
         class HttpHandler(http.server.SimpleHTTPRequestHandler):
             def translate_path(self, path):
                 # abandon query parameters
-                path = path.split('?', 1)[0]
-                path = path.split('#', 1)[0]
+                path = path.split("?", 1)[0]
+                path = path.split("#", 1)[0]
                 # Don't forget explicit trailing slash when normalizing. Issue17324
-                trailing_slash = path.rstrip().endswith('/')
+                trailing_slash = path.rstrip().endswith("/")
                 try:
-                    path = urllib.parse.unquote(path, errors='surrogatepass')
+                    path = urllib.parse.unquote(path, errors="surrogatepass")
                 except UnicodeDecodeError:
                     path = urllib.parse.unquote(path)
                 path = posixpath.normpath(path)
-                words = path.split('/')
+                words = path.split("/")
                 words = filter(None, words)
 
                 path = settings.PUB_DIR
@@ -35,7 +35,7 @@ class HttpServer:
                         continue
                     path = os.path.join(path, word)
                 if trailing_slash:
-                    path += '/'
+                    path += "/"
                 return path
 
             def do_DELETE(self):
@@ -46,7 +46,9 @@ class HttpServer:
                         self.send_response(HTTPStatus.OK)
                         self.end_headers()
                     except:
-                        self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error")
+                        self.send_error(
+                            HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error"
+                        )
                 else:
                     self.send_error(HTTPStatus.NOT_FOUND, "File not found")
 

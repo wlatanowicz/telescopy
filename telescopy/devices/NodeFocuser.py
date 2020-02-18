@@ -15,44 +15,44 @@ logger = logging.getLogger(__name__)
 
 @DevicePool.register
 class NodeFocuser(Driver):
-    name = 'NODE_FOCUSER'
+    name = "NODE_FOCUSER"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.focuser = NodeMCU(settings.FOCUSER_IP)
 
     general = properties.Group(
-        'GENERAL',
+        "GENERAL",
         vectors=dict(
-            connection=properties.Standard('CONNECTION'),
+            connection=properties.Standard("CONNECTION"),
             info=properties.TextVector(
-                'INFO',
+                "INFO",
                 enabled=False,
                 perm=const.Permissions.READ_ONLY,
                 elements=dict(
-                    manufacturer=properties.Text('MANUFACTURER', default='Wiktor Latanowicz'),
-                    camera_model=properties.Text('FOCUSER_MODEL', default='NodeFocuser'),
-                    ip=properties.Text('IP_ADDRESS', default=settings.FOCUSER_IP),
-                )
+                    manufacturer=properties.Text(
+                        "MANUFACTURER", default="Wiktor Latanowicz"
+                    ),
+                    camera_model=properties.Text(
+                        "FOCUSER_MODEL", default="NodeFocuser"
+                    ),
+                    ip=properties.Text("IP_ADDRESS", default=settings.FOCUSER_IP),
+                ),
             ),
             active_device=properties.Standard(
-                'ACTIVE_DEVICES',
-                elements=dict(
-                    camera=properties.Text('ACTIVE_FOCUSER', default=name)
-                )
-            )
-        )
+                "ACTIVE_DEVICES",
+                elements=dict(camera=properties.Text("ACTIVE_FOCUSER", default=name)),
+            ),
+        ),
     )
-    general.connection.connect.onwrite = 'connect'
+    general.connection.connect.onwrite = "connect"
 
     position = properties.Group(
-        'POSITION',
+        "POSITION",
         enabled=False,
-        vectors=dict(
-            position=properties.Standard('ABS_FOCUS_POSITION'),
-        )
+        vectors=dict(position=properties.Standard("ABS_FOCUS_POSITION"),),
     )
-    position.position.position.onwrite = 'reposition'
+    position.position.position.onwrite = "reposition"
 
     @non_blocking
     def connect(self, sender, value):
@@ -77,7 +77,9 @@ class NodeFocuser(Driver):
         self.position.position.state_ = const.State.BUSY
         try:
             self.focuser.set_position(value, wait=False)
-            while abs(float(self.position.position.position.value) - float(value)) > 0.01:
+            while (
+                abs(float(self.position.position.position.value) - float(value)) > 0.01
+            ):
                 time.sleep(1)
                 self.position.position.position.value = self.focuser.get_position()
 

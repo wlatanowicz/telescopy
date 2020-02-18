@@ -14,51 +14,53 @@ from telescopy import settings
 
 @DevicePool.register
 class PHD2(Driver):
-    name = 'PHD2'
+    name = "PHD2"
 
     general = properties.Group(
-        'GENERAL',
+        "GENERAL",
         vectors=dict(
-            connection=properties.Standard('CONNECTION', onchange='connect'),
+            connection=properties.Standard("CONNECTION", onchange="connect"),
             connection_settings=properties.TextVector(
-                'CONNECTION_SETTINGS',
+                "CONNECTION_SETTINGS",
                 perm=const.Permissions.READ_ONLY,
                 elements=dict(
-                    ip=properties.Text('IP_ADDRESS', default=settings.PHD2_IP),
-                    port=properties.Text('PORT', default=settings.PHD2_PORT),
-                )
+                    ip=properties.Text("IP_ADDRESS", default=settings.PHD2_IP),
+                    port=properties.Text("PORT", default=settings.PHD2_PORT),
+                ),
             ),
             info=properties.TextVector(
-                'INFO',
+                "INFO",
                 enabled=False,
                 perm=const.Permissions.READ_ONLY,
                 elements=dict(
-                    phdversion=properties.Text('PHD_VERSION'),
-                    state=properties.Text('APP_STATE'),
-                )
-            )
-        )
+                    phdversion=properties.Text("PHD_VERSION"),
+                    state=properties.Text("APP_STATE"),
+                ),
+            ),
+        ),
     )
 
     dithering = properties.Group(
-        'DITHERING',
+        "DITHERING",
         enabled=False,
         vectors=dict(
             dither=properties.NumberVector(
-                'DITHER',
+                "DITHER",
                 elements=dict(
-                    dither=properties.Number('DITHER_BY_PIXELS', default=5, onwrite='dither'),
-                )
+                    dither=properties.Number(
+                        "DITHER_BY_PIXELS", default=5, onwrite="dither"
+                    ),
+                ),
             ),
             dither_settle_settings=properties.NumberVector(
-                'DITHER_SETTLE_SETTINGS',
+                "DITHER_SETTLE_SETTINGS",
                 elements=dict(
-                    pixels=properties.Number('PIXELS', default=1.5),
-                    time=properties.Number('TIME', default=10),
-                    timeout=properties.Number('TIMEOUT', default=30),
-                )
-            )
-        )
+                    pixels=properties.Number("PIXELS", default=1.5),
+                    time=properties.Number("TIME", default=10),
+                    timeout=properties.Number("TIMEOUT", default=30),
+                ),
+            ),
+        ),
     )
 
     def __init__(self, *args, **kwargs):
@@ -83,7 +85,7 @@ class PHD2(Driver):
             "time": self.dithering.dither_settle_settings.time.value,
             "timeout": self.dithering.dither_settle_settings.timeout.value,
         }
-        self.connection.rpc('dither', [amount, ra_only, settle])
+        self.connection.rpc("dither", [amount, ra_only, settle])
 
     def event_settlebegin(self, **kwargs):
         self.dithering.dither.state_ = const.State.BUSY
@@ -108,7 +110,7 @@ class PHD2(Driver):
     class Connection:
         class Buffer:
             def __init__(self, connection, device):
-                self._buffer = ''
+                self._buffer = ""
                 self.connection = connection
                 self.device = device
 
@@ -116,12 +118,12 @@ class PHD2(Driver):
                 self._buffer += msg
 
             def process(self):
-                messages = self._buffer.split('\r\n')
+                messages = self._buffer.split("\r\n")
                 if messages[-1]:
                     self._buffer = messages[-1]
                     messages = messages[0:-1]
                 else:
-                    self._buffer = ''
+                    self._buffer = ""
 
                 for msg in messages:
                     self.process_message(msg)
@@ -131,18 +133,18 @@ class PHD2(Driver):
                     return
 
                 msg = json.loads(raw_msg)
-                if 'Event' in msg:
+                if "Event" in msg:
                     msg = {k.lower(): v for k, v in msg.items()}
-                    event_name = msg['event'].lower()
-                    method = f'event_{event_name}'
+                    event_name = msg["event"].lower()
+                    method = f"event_{event_name}"
                     if hasattr(self.device, method):
                         getattr(self.device, method)(**msg)
                     else:
                         print(msg)
-                if 'jsonrpc' in msg:
+                if "jsonrpc" in msg:
                     print(msg)
-                    if msg['id'] in self.connection.rpc_responses:
-                        self.connection.rpc_responses[msg['id']].put(msg)
+                    if msg["id"] in self.connection.rpc_responses:
+                        self.connection.rpc_responses[msg["id"]].put(msg)
 
         def __init__(self, device):
             self.buffer = self.Buffer(self, device)
@@ -153,12 +155,12 @@ class PHD2(Driver):
 
         def handle_incoming_messages(self):
             while True:
-                logging.debug(f'PHD2: waiting for data')
+                logging.debug(f"PHD2: waiting for data")
                 message = self.sock.recv(1024)
                 if not message:
-                    logging.debug(f'PHD2: no data, breaking')
+                    logging.debug(f"PHD2: no data, breaking")
                     break
-                logging.debug(f'PHD2: got data: {message}')
+                logging.debug(f"PHD2: got data: {message}")
                 self.buffer.append(message.decode("latin1"))
                 self.buffer.process()
 
@@ -166,29 +168,31 @@ class PHD2(Driver):
             self.rpc_serial += 1
             id = self.rpc_serial
             payload = {
-                'method': method,
-                'params': params,
-                'id': id,
+                "method": method,
+                "params": params,
+                "id": id,
             }
             q = queue.Queue()
             self.rpc_responses[id] = q
-            payload_raw = json.dumps(payload) + '\r\n'
+            payload_raw = json.dumps(payload) + "\r\n"
             print(payload_raw)
-            self.sock.sendall(payload_raw.encode('latin1'))
+            self.sock.sendall(payload_raw.encode("latin1"))
             try:
                 response = q.get(timeout=response_timeout)
             except:
-                raise Exception(f'Timeout waiting for JSONRPC response for request id={id}')
+                raise Exception(
+                    f"Timeout waiting for JSONRPC response for request id={id}"
+                )
 
             del self.rpc_responses[id]
 
-            if 'result' in response:
-                return response['result']
+            if "result" in response:
+                return response["result"]
 
-            if 'error' in response:
-                raise Exception(response['error'])
+            if "error" in response:
+                raise Exception(response["error"])
 
-            raise Exception(f'Invalid JSONRPC response for request id={id}')
+            raise Exception(f"Invalid JSONRPC response for request id={id}")
 
         def connect(self):
             ip = self.device.general.connection_settings.ip.value
@@ -197,7 +201,6 @@ class PHD2(Driver):
             self.sock.connect((ip, port))
 
             handler_thread = threading.Thread(
-                target=self.handle_incoming_messages,
-                daemon=True,
+                target=self.handle_incoming_messages, daemon=True,
             )
             handler_thread.start()
