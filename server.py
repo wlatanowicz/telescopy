@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
-import threading
 import logging
-
+import threading
 from logging import config
+
+import telescopy.devices
 from indi.device.pool import DevicePool
 from indi.routing import Router
 from indi.transport.server import TCP as TCPServer
 from indi.transport.server import WebSocket as WebSocketServer
-
-from telescopy.http import HttpServer
 from telescopy import settings
-
+from telescopy.http import HttpServer
 
 router = Router()
 
@@ -19,7 +18,6 @@ settings.LOGGING["handlers"]["indi"]["router"] = [router]
 config.dictConfig(settings.LOGGING)
 
 
-import telescopy.devices
 
 if settings.ENABLE_SIMULATORS:
     import telescopy_sims.devices

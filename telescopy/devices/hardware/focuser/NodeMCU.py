@@ -1,6 +1,7 @@
-import time
-import requests
 import math
+import time
+
+import requests
 
 
 class NodeMCU:

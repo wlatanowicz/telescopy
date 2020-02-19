@@ -1,14 +1,13 @@
-import threading
-import queue
-import time
-import socket
-import logging
 import json
+import logging
+import queue
+import socket
+import threading
+import time
 
 from indi.device import Driver, properties
-from indi.message import const
 from indi.device.pool import DevicePool
-
+from indi.message import const
 from telescopy import settings
 
 

@@ -1,6 +1,5 @@
-from indi.device import Proxy
+from indi.device import Proxy, properties
 from indi.device.pool import DevicePool
-from indi.device import properties
 
 
 @DevicePool.register

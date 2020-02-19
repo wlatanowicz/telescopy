@@ -1,8 +1,8 @@
-import threading
 import http.server
-import socketserver
 import os
 import posixpath
+import socketserver
+import threading
 import urllib.parse
 from http import HTTPStatus
 

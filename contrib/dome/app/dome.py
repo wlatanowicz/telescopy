@@ -1,7 +1,7 @@
-import uasyncio
-import machine
 import time
 
+import machine
+import uasyncio
 # import const
 from lib.uasyncio.websocket.server import WSReader, WSWriter
 
