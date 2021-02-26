@@ -2,15 +2,17 @@ import logging
 import time
 
 from indi.device import Driver, non_blocking, properties
-from indi.device.pool import DevicePool
+from indi.device.pool import default_pool
 from indi.message import const
-from telescopy import settings
-from telescopy.devices.hardware.focuser.NodeMCU import NodeMCU
+from indi.device.properties.const import DriverInterface
+
+import settings
+from .hardware.NodeMCU import NodeMCU
 
 logger = logging.getLogger(__name__)
 
 
-@DevicePool.register
+@default_pool.register
 class NodeFocuser(Driver):
     name = "NODE_FOCUSER"
 
@@ -22,6 +24,7 @@ class NodeFocuser(Driver):
         "GENERAL",
         vectors=dict(
             connection=properties.Standard("CONNECTION"),
+            driver_info = properties.DriverInfo(interface=(DriverInterface.FOCUSER,)),
             info=properties.TextVector(
                 "INFO",
                 enabled=False,
@@ -47,7 +50,12 @@ class NodeFocuser(Driver):
     position = properties.Group(
         "POSITION",
         enabled=False,
-        vectors=dict(position=properties.Standard("ABS_FOCUS_POSITION"),),
+        vectors=dict(
+            position=properties.Standard("ABS_FOCUS_POSITION"),
+            motion=properties.Standard("FOCUS_MOTION"),
+            rel_position=properties.Standard("REL_FOCUS_POSITION"),
+            fmax=properties.Standard("FOCUS_MAX"),
+        ),
     )
     position.position.position.onwrite = "reposition"
 
