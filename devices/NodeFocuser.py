@@ -5,6 +5,7 @@ from indi.device import Driver, non_blocking, properties
 from indi.device.pool import default_pool
 from indi.message import const
 from indi.device.properties.const import DriverInterface
+from indi.device.properties import standard
 
 import settings
 from .hardware.NodeMCU import NodeMCU
@@ -23,8 +24,8 @@ class NodeFocuser(Driver):
     general = properties.Group(
         "GENERAL",
         vectors=dict(
-            connection=properties.Standard("CONNECTION"),
-            driver_info = properties.DriverInfo(interface=(DriverInterface.FOCUSER,)),
+            connection=standard.common.Connection(),
+            driver_info = standard.common.DriverInfo(interface=(DriverInterface.FOCUSER,)),
             info=properties.TextVector(
                 "INFO",
                 enabled=False,
@@ -39,10 +40,6 @@ class NodeFocuser(Driver):
                     ip=properties.Text("IP_ADDRESS", default=settings.FOCUSER_IP),
                 ),
             ),
-            active_device=properties.Standard(
-                "ACTIVE_DEVICES",
-                elements=dict(camera=properties.Text("ACTIVE_FOCUSER", default=name)),
-            ),
         ),
     )
     general.connection.connect.onwrite = "connect"
@@ -51,10 +48,10 @@ class NodeFocuser(Driver):
         "POSITION",
         enabled=False,
         vectors=dict(
-            position=properties.Standard("ABS_FOCUS_POSITION"),
-            motion=properties.Standard("FOCUS_MOTION"),
-            rel_position=properties.Standard("REL_FOCUS_POSITION"),
-            fmax=properties.Standard("FOCUS_MAX"),
+            position=standard.focuser.AbsolutePosition(),
+            motion=standard.focuser.FocusMotion(),
+            rel_position=standard.focuser.RelativePosition(),
+            fmax=standard.focuser.FocusMax(),
         ),
     )
     position.position.position.onwrite = "reposition"
@@ -76,6 +73,7 @@ class NodeFocuser(Driver):
         self.general.connection.connect.bool_value = connected
         self.position.enabled = connected
         self.general.info.enabled = connected
+
 
     @non_blocking
     def reposition(self, sender, value):
