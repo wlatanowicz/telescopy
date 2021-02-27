@@ -48,13 +48,14 @@ class NodeFocuser(Driver):
         "POSITION",
         enabled=False,
         vectors=dict(
-            position=standard.focuser.AbsolutePosition(),
+            position=standard.focuser.AbsolutePosition(min=0, max=5000, step=1),
             motion=standard.focuser.FocusMotion(),
             rel_position=standard.focuser.RelativePosition(),
             fmax=standard.focuser.FocusMax(),
         ),
     )
     position.position.position.onwrite = "reposition"
+    position.rel_position.position.onwrite = "step"
 
     @non_blocking
     def connect(self, sender, value):
@@ -77,11 +78,25 @@ class NodeFocuser(Driver):
 
     @non_blocking
     def reposition(self, sender, value):
+        self._move(value)
+
+
+    @non_blocking
+    def step(self, sender, value):
+        self.position.rel_position.position.state_ = const.State.BUSY
+        current_position = self.position.position.position.value
+        direction = 1 if self.position.motion.outward.bool_value else -1
+        new_value = current_position + direction * value
+        self._move(new_value)
+        self.position.rel_position.position.state_ = const.State.OK
+
+
+    def _move(self, target):
         self.position.position.state_ = const.State.BUSY
         try:
-            self.focuser.set_position(value, wait=False)
+            self.focuser.set_position(target, wait=False)
             while (
-                abs(float(self.position.position.position.value) - float(value)) > 0.01
+                abs(float(self.position.position.position.value) - float(target)) > 0.01
             ):
                 time.sleep(1)
                 self.position.position.position.value = self.focuser.get_position()
