@@ -64,7 +64,7 @@ class NodeFocuser(Driver):
     )
     position.position.position.onwrite = "reposition"
     position.rel_position.position.onwrite = "step"
-    position.speed.speed.onwrite = "change_speed"
+    position.speed.speed.onchange = "change_speed"
 
     @non_blocking
     def connect(self, sender, value):
@@ -100,8 +100,8 @@ class NodeFocuser(Driver):
     def reposition(self, sender, value):
         self.focuser.set_position(value)
 
-    def change_speed(self, sender, value):
-        self.focuser.set_speed(value)
+    def change_speed(self, event):
+        self.focuser.set_speed(self.position.speed.speed.value)
 
     def step(self, sender, value):
         self.position.rel_position.position.state_ = const.State.BUSY
