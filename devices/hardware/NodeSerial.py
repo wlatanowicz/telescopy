@@ -46,10 +46,10 @@ class NodeSerial:
                     if "status" in in_data:
                         status = in_data["status"]
 
-                        if status != self._last_status:
+                        if status != self._last_update:
                             self.current_position = status["position"]
                             self.current_status = status["status"]
-                            self._last_status = status
+                            self._last_update = status
                             self.onupdate()
         
         self.is_connected = True
