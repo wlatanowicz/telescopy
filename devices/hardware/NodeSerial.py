@@ -23,7 +23,7 @@ class NodeSerial:
     def get_position(self):
         return self.current_position
 
-    def get_status():
+    def get_status(self):
         return self.current_status
 
     def reset_position(self, position):
