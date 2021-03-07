@@ -1,1 +1,2 @@
 FOCUSER_IP = "192.168.5.51"
+FOCUSER_PORT = "/dev/ttyAMA1"

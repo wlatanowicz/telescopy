@@ -8,7 +8,7 @@ from indi.device.properties.const import DriverInterface
 from indi.device.properties import standard
 
 import settings
-from .hardware.NodeMCU import NodeMCU
+from .hardware.NodeSerial import NodeSerial
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class NodeFocuser(Driver):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.focuser = NodeMCU(settings.FOCUSER_IP)
+        self.focuser = NodeSerial(settings.FOCUSER_PORT, onupdate=self.device_updated)
 
     general = properties.Group(
         "GENERAL",
@@ -48,14 +48,23 @@ class NodeFocuser(Driver):
         "POSITION",
         enabled=False,
         vectors=dict(
-            position=standard.focuser.AbsolutePosition(min=0, max=5000, step=1),
+            position=standard.focuser.AbsolutePosition(min=0, max=15000, step=1),
             motion=standard.focuser.FocusMotion(),
             rel_position=standard.focuser.RelativePosition(),
             fmax=standard.focuser.FocusMax(),
+            speed=properties.NumberVector(
+                "SPEED",
+                elements=dict(
+                    speed=properties.Number(
+                        "SPEED_VALUE", default=100,
+                    )
+                )
+            )
         ),
     )
     position.position.position.onwrite = "reposition"
     position.rel_position.position.onwrite = "step"
+    position.speed.speed.onwrite = "change_speed"
 
     @non_blocking
     def connect(self, sender, value):
@@ -64,7 +73,16 @@ class NodeFocuser(Driver):
 
         if connected:
             try:
-                self.position.position.position.reset_value(self.focuser.get_position())
+                self.focuser.connect()
+                pos = None
+                for _ in range(30):
+                    time.sleep(1)
+                    pos = self.focuser.get_position()
+                    if pos is not None:
+                        self.position.position.position.reset_value(pos)
+                        break
+                if pos is None:
+                    raise Exception("Did not get focuser position")
                 self.general.connection.state_ = const.State.OK
             except Exception as e:
                 self.general.connection.state_ = const.State.ALERT
@@ -75,33 +93,22 @@ class NodeFocuser(Driver):
         self.position.enabled = connected
         self.general.info.enabled = connected
 
+    def device_updated(self):
+        self.position.position.position.state_ = const.State.OK if self.focuser.get_status() == "idle" else const.State.BUSY
+        self.position.position.position.value = self.focuser.get_position()
 
-    @non_blocking
     def reposition(self, sender, value):
-        self._move(value)
+        self.focuser.set_position(value)
 
+    def change_speed(self, sender, value):
+        self.focuser.set_speed(value)
 
-    @non_blocking
     def step(self, sender, value):
         self.position.rel_position.position.state_ = const.State.BUSY
         current_position = self.position.position.position.value
         direction = 1 if self.position.motion.outward.bool_value else -1
         new_value = current_position + direction * value
-        self._move(new_value)
+
+        self.focuser.set_position(new_value)
+
         self.position.rel_position.position.state_ = const.State.OK
-
-
-    def _move(self, target):
-        self.position.position.state_ = const.State.BUSY
-        try:
-            self.focuser.set_position(target, wait=False)
-            while (
-                abs(float(self.position.position.position.value) - float(target)) > 0.01
-            ):
-                time.sleep(1)
-                self.position.position.position.value = self.focuser.get_position()
-
-            self.position.position.state_ = const.State.OK
-        except Exception as e:
-            self.position.position.state_ = const.State.ALERT
-            logger.error(e)
