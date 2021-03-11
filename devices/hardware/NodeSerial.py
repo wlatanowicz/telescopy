@@ -38,7 +38,7 @@ class NodeSerial:
 
     def _send_command(self, **cmd):
         if self.connection.is_open:
-            self.connection.write(json.dumps(cmd))
+            self.connection.write(json.dumps(cmd).encode())
 
     def connect(self):
         self.connection = serial.Serial(self.port, self.baud)
@@ -46,7 +46,10 @@ class NodeSerial:
         def connection_thread():
             while self.connection.is_open:
                 in_data = self.connection.readline()
-                in_data = json.loads(in_data)
+                if not in_data:
+                    continue
+
+                in_data = json.loads(in_data.decode())
 
                 if "status" in in_data:
                     status = in_data["status"]
