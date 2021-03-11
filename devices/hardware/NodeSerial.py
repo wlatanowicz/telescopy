@@ -4,11 +4,15 @@ import json
 import threading
 
 import requests
+import serial
 
 
 class NodeSerial:
     def __init__(self, port, onupdate):
         self.port = port
+        self.baud = 9600
+
+        self.connection = None
         self.onupdate = onupdate
 
         self.current_position = None
@@ -33,28 +37,28 @@ class NodeSerial:
         self._send_command(speed=speed)
 
     def _send_command(self, **cmd):
-        with open(self.port, "w") as f:
-            f.write(json.dumps(cmd))
+        if self.connection.is_open:
+            self.connection.write(json.dumps(cmd))
 
     def connect(self):
+        self.connection = serial.Serial(self.port, self.baud)
+
         def connection_thread():
-            with open(self.port, "r") as f:
-                while self.is_connected:
-                    in_data = f.readline()
-                    in_data = json.loads(in_data)
+            while self.connection.is_open:
+                in_data = self.connection.readline()
+                in_data = json.loads(in_data)
 
-                    if "status" in in_data:
-                        status = in_data["status"]
+                if "status" in in_data:
+                    status = in_data["status"]
 
-                        if status != self._last_update:
-                            self.current_position = status["position"]
-                            self.current_status = status["status"]
-                            self._last_update = status
-                            self.onupdate()
+                    if status != self._last_update:
+                        self.current_position = status["position"]
+                        self.current_status = status["status"]
+                        self._last_update = status
+                        self.onupdate()
         
-        self.is_connected = True
         th = threading.Thread(target=connection_thread)
         th.start()
 
     def disconnect(self):
-        self.is_connected = False
+        self.connection.close()

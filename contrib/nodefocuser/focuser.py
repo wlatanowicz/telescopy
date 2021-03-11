@@ -169,6 +169,7 @@ class Device:
             return
 
         if cls.uart.any():
+            in_data = None
             try:
                 in_data = cls.uart.readline()
                 if not in_data:
@@ -197,6 +198,7 @@ class Device:
                 msg = json.dumps({
                     "error": "Error processing command",
                     "details": str(ex),
+                    "in_data": in_data,
                 }) + "\n"
                 cls.uart.write(msg.encode())
 
