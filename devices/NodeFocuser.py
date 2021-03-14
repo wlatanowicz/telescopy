@@ -25,6 +25,8 @@ class NodeFocuser(Driver):
     name = "NODE_FOCUSER"
     NUM_BOOKMARKS = 10
 
+    MANUAL_MOVES = (10, 50, 100, 500, 1000)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.focuser = NodeHardware(settings.FOCUSER_PORT, onupdate=self.device_updated)
@@ -111,6 +113,37 @@ class NodeFocuser(Driver):
         },
     )
 
+    manual = properties.Group(
+        "MANUAL_FOCUS",
+        enabled=False,
+        vectors=dict(
+            inward=properties.SwitchVector(
+                "MANUAL_INWARD",
+                rule=const.SwitchRule.AT_MOST_ONE,
+                elements={
+                    f"inward{m}": properties.Switch(
+                        f"MANUAL_INWARD_{m}",
+                        default=const.SwitchState.OFF,
+                        onwrite="manual_move_eventhandler",
+                    )
+                    for m in MANUAL_MOVES
+                },
+            ),
+            outward=properties.SwitchVector(
+                "MANUAL_OUTWARD",
+                rule=const.SwitchRule.AT_MOST_ONE,
+                elements={
+                    f"outward{m}": properties.Switch(
+                        f"MANUAL_OUTWARD_{m}",
+                        default=const.SwitchState.OFF,
+                        onwrite="manual_move_eventhandler",
+                    )
+                    for m in MANUAL_MOVES
+                },
+            ),
+        ),
+    )
+
     @non_blocking
     def connect(self, sender, value):
         connected = value == const.SwitchState.ON
@@ -138,6 +171,7 @@ class NodeFocuser(Driver):
         self.position.enabled = connected
         self.general.info.enabled = connected
         self.bookmarks.enabled = connected
+        self.manual.enabled = connected
         self.load_bookmarks()
 
     def device_updated(self):
@@ -221,3 +255,19 @@ class NodeFocuser(Driver):
                 if i != idx:
                     save, restore = self._get_bookmark_elements(i)
                     restore.value = const.SwitchState.OFF
+
+    def manual_move_eventhandler(self, sender, value):
+        _, direction, step_size = sender.name.split("_")
+        step_size = int(step_size)
+
+        current_position = self.position.position.position.value
+        direction = 1 if direction == "OUTWARD" else -1
+        new_value = current_position + direction * step_size
+
+        self.focuser.set_position(new_value)
+
+        for d in ("inward", "outward"):
+            for m in self.MANUAL_MOVES:
+                getattr(
+                    getattr(self.manual, d), f"{d}{m}"
+                ).value = const.SwitchState.OFF
