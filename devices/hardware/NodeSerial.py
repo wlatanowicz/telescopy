@@ -59,7 +59,7 @@ class NodeSerial:
                         self.current_status = status["status"]
                         self._last_update = status
                         self.onupdate()
-        
+
         th = threading.Thread(target=connection_thread)
         th.start()
 

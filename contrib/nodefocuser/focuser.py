@@ -83,7 +83,7 @@ class Device:
     @classmethod
     def save_state(cls):
         if cls.last_saved_position != cls.position:
-            f = open('state.txt', 'w')
+            f = open("state.txt", "w")
             f.write(str(cls.position))
             f.close()
             cls.last_saved_position = cls.position
@@ -91,7 +91,7 @@ class Device:
     @classmethod
     def load_state(cls):
         try:
-            with open('state.txt', 'r') as f:
+            with open("state.txt", "r") as f:
                 cls.position = int(f.read())
                 cls.last_saved_position = cls.position
         except:
@@ -110,7 +110,11 @@ class Device:
     def set_target(cls, target):
         target = round(target)
         if target > cls.MAX_POSITION or target < cls.MIN_POSITION:
-            raise ValueError("Position has to be between {} and {}".format(cls.MIN_POSITION, cls.MAX_POSITION))
+            raise ValueError(
+                "Position has to be between {} and {}".format(
+                    cls.MIN_POSITION, cls.MAX_POSITION
+                )
+            )
 
         position = cls.position
 
@@ -131,15 +135,21 @@ class Device:
     def reset(cls, target):
         target = round(target)
         if target > cls.MAX_POSITION or target < cls.MIN_POSITION:
-            raise ValueError("Position has to be between {} and {}".format(cls.MIN_POSITION, cls.MAX_POSITION))
+            raise ValueError(
+                "Position has to be between {} and {}".format(
+                    cls.MIN_POSITION, cls.MAX_POSITION
+                )
+            )
 
         cls.position = target
 
     @classmethod
     def set_speed(cls, speed):
         if speed > cls.MAX_SPEED or speed < cls.MIN_SPEED:
-            raise ValueError("Speed has to be between {} and {}".format(cls.MIN_SPEED, cls.MAX_SPEED))
-        
+            raise ValueError(
+                "Speed has to be between {} and {}".format(cls.MIN_SPEED, cls.MAX_SPEED)
+            )
+
         cls.speed = speed
 
     @classmethod
@@ -150,13 +160,18 @@ class Device:
         else:
             status = "move"
 
-        msg = json.dumps({
-            "status":{
-                "position": cls.position,
-                "direction": direction,
-                "status": status,
-            }
-        }) + "\n"
+        msg = (
+            json.dumps(
+                {
+                    "status": {
+                        "position": cls.position,
+                        "direction": direction,
+                        "status": status,
+                    }
+                }
+            )
+            + "\n"
+        )
 
         if cls.uart:
             cls.uart.write(msg.encode())
@@ -177,9 +192,7 @@ class Device:
 
                 cmd = json.loads(in_data.decode())
 
-                msg = json.dumps({
-                    "ack": cmd
-                }) + "\n"
+                msg = json.dumps({"ack": cmd}) + "\n"
 
                 if "reset" in cmd:
                     cls.reset(cmd["reset"])
@@ -195,19 +208,23 @@ class Device:
 
                 cls.uart.write(msg.encode())
             except Exception as ex:
-                msg = json.dumps({
-                    "error": "Error processing command",
-                    "details": str(ex),
-                    "in_data": in_data,
-                }) + "\n"
+                msg = (
+                    json.dumps(
+                        {
+                            "error": "Error processing command",
+                            "details": str(ex),
+                            "in_data": in_data,
+                        }
+                    )
+                    + "\n"
+                )
                 cls.uart.write(msg.encode())
-
 
 
 def start():
     machine.freq(160000000)
     uos.dupterm(None, 1)
-    
+
     Device.uart = machine.UART(0, baudrate=9600, rxbuf=64)
     Device.load_state()
     Device.main()
