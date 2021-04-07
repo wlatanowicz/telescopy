@@ -1,4 +1,3 @@
-git+https://github.com/wlatanowicz/indipy.git@standard
-
 requests
 pyserial
+indipy==0.2.0

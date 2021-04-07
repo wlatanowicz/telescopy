@@ -7,6 +7,7 @@ from indi.message import const
 from indi.message import DelProperty
 from indi.device.properties.const import DriverInterface
 from indi.device.properties import standard
+from indi.device.events import on, Write, Change
 
 import settings
 import os
@@ -55,7 +56,6 @@ class NodeFocuser(Driver):
             ),
         ),
     )
-    general.connection.connect.onwrite = "connect"
 
     position = properties.Group(
         "POSITION",
@@ -76,9 +76,6 @@ class NodeFocuser(Driver):
             ),
         ),
     )
-    position.position.position.onwrite = "reposition"
-    position.rel_position.position.onwrite = "step"
-    position.speed.speed.onchange = "change_speed"
 
     bookmarks = properties.Group(
         "BOOKMARKS",
@@ -90,7 +87,6 @@ class NodeFocuser(Driver):
                     elements={
                         f"bookmark{i}": properties.Text(
                             f"SAVE_BOOKMARK_{i}",
-                            onwrite="save_bookmark_eventhandler",
                         )
                     },
                 )
@@ -104,7 +100,6 @@ class NodeFocuser(Driver):
                         f"bookmark{i}": properties.Switch(
                             f"RESTORE_BOOKMARK_{i}",
                             default=const.SwitchState.OFF,
-                            onwrite="restore_bookmark_eventhandler",
                         )
                         for i in range(NUM_BOOKMARKS)
                     },
@@ -124,7 +119,6 @@ class NodeFocuser(Driver):
                     f"inward{m}": properties.Switch(
                         f"MANUAL_INWARD_{m}",
                         default=const.SwitchState.OFF,
-                        onwrite="manual_move_eventhandler",
                     )
                     for m in MANUAL_MOVES
                 },
@@ -136,7 +130,6 @@ class NodeFocuser(Driver):
                     f"outward{m}": properties.Switch(
                         f"MANUAL_OUTWARD_{m}",
                         default=const.SwitchState.OFF,
-                        onwrite="manual_move_eventhandler",
                     )
                     for m in MANUAL_MOVES
                 },
@@ -144,8 +137,10 @@ class NodeFocuser(Driver):
         ),
     )
 
+    @on(general.connection.connect, Write)
     @non_blocking
-    def connect(self, sender, value):
+    def connect(self, event):
+        value = event.new_value
         connected = value == const.SwitchState.ON
         self.general.connection.state_ = const.State.BUSY
 
@@ -180,13 +175,19 @@ class NodeFocuser(Driver):
         )
         self.position.position.position.value = self.focuser.get_position()
 
-    def reposition(self, sender, value):
+
+    @on(position.position.position, Write)
+    def reposition(self, event):
+        value = event.new_value
         self.focuser.set_position(value)
 
+    @on(position.speed.speed, Change)
     def change_speed(self, event):
         self.focuser.set_speed(self.position.speed.speed.value)
 
-    def step(self, sender, value):
+    @on(position.rel_position.position, Write)
+    def step(self, event):
+        value = event.new_value
         self.position.rel_position.position.state_ = const.State.BUSY
         current_position = self.position.position.position.value
         direction = 1 if self.position.motion.outward.bool_value else -1
@@ -236,7 +237,9 @@ class NodeFocuser(Driver):
         }
         return self.BOOKMARKS.get(idx, empty)
 
-    def save_bookmark_eventhandler(self, sender, value):
+    def save_bookmark_eventhandler(self, event):
+        value = event.new_value
+        sender = event.element
         idx = int(sender.name.rsplit("_", 1)[-1])
         self.BOOKMARKS[idx] = {
             "label": value,
@@ -245,7 +248,9 @@ class NodeFocuser(Driver):
         self.save_bookmarks()
         self.refresh_bookmarks()
 
-    def restore_bookmark_eventhandler(self, sender, value):
+    def restore_bookmark_eventhandler(self, event):
+        value = event.new_value
+        sender = event.element
         if value == const.SwitchState.ON:
             idx = int(sender.name.rsplit("_", 1)[-1])
             bookmark = self._get_bookmark(idx)
@@ -256,7 +261,8 @@ class NodeFocuser(Driver):
                     save, restore = self._get_bookmark_elements(i)
                     restore.value = const.SwitchState.OFF
 
-    def manual_move_eventhandler(self, sender, value):
+    def manual_move_eventhandler(self, event):
+        sender = event.element
         _, direction, step_size = sender.name.split("_")
         step_size = int(step_size)
 
@@ -271,3 +277,11 @@ class NodeFocuser(Driver):
                 getattr(
                     getattr(self.manual, d), f"{d}{m}"
                 ).value = const.SwitchState.OFF
+
+    for m in MANUAL_MOVES:
+        on(getattr(manual.inward, f"inward{m}"), Write)(manual_move_eventhandler)
+        on(getattr(manual.outward, f"outward{m}"), Write)(manual_move_eventhandler)
+
+    for i in range(NUM_BOOKMARKS):
+        on(getattr(getattr(bookmarks, f"save{i}"), f"bookmark{i}"), Write)(save_bookmark_eventhandler)
+        on(getattr(bookmarks.restore, f"bookmark{i}"), Write)(restore_bookmark_eventhandler)
